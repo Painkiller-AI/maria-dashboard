@@ -1,0 +1,23 @@
+set -e
+
+export PATH="$PATH:$(git rev-parse --show-toplevel)/.venv/bin"
+
+CYAN='\033[1;36m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+RESET='\033[0m'
+
+echo -e "${CYAN}1. Running lint...${RESET}"
+make lint
+
+echo -e "${CYAN}2. Running format...${RESET}"
+make format
+
+if ! git diff --quiet
+then
+  echo -e "${RED}Files were changed after running hook! Add them to the stage and try again.${RESET}"
+  exit 1
+fi
+
+echo -e "${GREEN}Checks succeeded!${RESET}"
+exit 0

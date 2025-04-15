@@ -1,0 +1,26 @@
+{
+    "explorer.compactFolders": false,
+    "search.exclude": {
+        "**/.venv": true
+    },
+    "python.analysis.exclude": [
+        "**/.venv/**",
+    ],
+    "flake8.enabled": false,
+    "python.defaultInterpreterPath": ".venv/bin/python",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        },
+    },
+    
+    "python.analysis.importFormat": "absolute",
+    "python.analysis.typeCheckingMode": "standard",
+    "python.analysis.autoFormatStrings": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.diagnosticMode": "workspace",
+}
