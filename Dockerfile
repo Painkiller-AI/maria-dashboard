@@ -15,4 +15,4 @@ FROM python:3.13-slim-bookworm
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:$PATH"
-CMD ["streamlit", "run", "src/main.py"]
+CMD ["streamlit", "run", "src/main.py", "--server.address=0.0.0.0", "--server.baseUrlPath", "/dashboard"]

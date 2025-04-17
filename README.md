@@ -3,7 +3,7 @@
 
 ## 1. Requirements
 
-- Python (3.12.0)
+- Python (3.13.0)
 - Docker
 - Make
 - [uv](https://pypi.org/project/uv/)
