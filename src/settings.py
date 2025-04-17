@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     MARIA_API_URL: str = "https://dev.mariasaude.digital/maria/app/v1"
     MARIA_API_SUPER_TOKEN: str | None = None
 
-    POSTGRES_DB: str = "maria"
+    POSTGRES_DB: str = "maria_console"
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_HOST: str = "localhost"
