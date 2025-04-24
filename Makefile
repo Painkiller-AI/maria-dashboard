@@ -11,6 +11,6 @@ seed:
 	docker exec maria_db sh -c "psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /scripts/console-dump-extensions.sql" || true
 	docker exec maria_db sh -c "pg_restore -U $(POSTGRES_USER) -d $(POSTGRES_DB) --no-owner --role=$(POSTGRES_USER) --schema=public -1 /scripts/console-dump-maria_console.sql" || true
 lint:
-	uv run ruff check .
+	uv run ruff check --fix
 format:
-	uv run ruff format .
+	uv run ruff format

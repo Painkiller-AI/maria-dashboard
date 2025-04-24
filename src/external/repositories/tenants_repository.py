@@ -17,3 +17,11 @@ class TenantsRepository:
             data = result.mappings().fetchone()
 
             return data if data else None
+
+    async def list_tenants(self):
+        async with db_connection.session() as session:
+            query = text("SELECT * FROM tenants")
+            result = await session.execute(query)
+            data = result.mappings().all()
+
+            return [dict(row) for row in data]

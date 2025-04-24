@@ -1,6 +1,7 @@
 # external/database/connection.py
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -24,7 +25,6 @@ class DBConnection:
         self.__sessionmaker = async_sessionmaker(
             autocommit=False, bind=self.engine, autoflush=False
         )
-        
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:

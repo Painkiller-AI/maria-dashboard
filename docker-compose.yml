@@ -1,26 +1,26 @@
 services:
-  maria_dash:
-    container_name: maria_dash
-    build: .
-    volumes:
-      - .:/app
-    ports:
-      - "8501:8501"
-    env_file:
-      - .env
-    depends_on:
-      - maria_db
-    networks:
-      - nw-default
-    develop:
-      watch:
-        - action: sync
-          path: .
-          target: /app
-          ignore:
-            - .venv/
-        - action: rebuild
-          path: ./pyproject.toml
+  # maria_dash:
+  #   container_name: maria_dash
+  #   build: .
+  #   volumes:
+  #     - .:/app
+  #   ports:
+  #     - "8501:8501"
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - maria_db
+  #   networks:
+  #     - nw-default
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: .
+  #         target: /app
+  #         ignore:
+  #           - .venv/
+  #       - action: rebuild
+  #         path: ./pyproject.toml
 
   maria_db:
     container_name: maria_db
