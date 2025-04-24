@@ -11,7 +11,7 @@ async def login_page():
     tenants_repository = TenantsRepository()
     tenants = await tenants_repository.list_tenants()
 
-    tenant_domain = st.selectbox("Tenant", options=[tenant["domain"] for tenant in tenants])
+    tenant_domain = st.selectbox("Empresa", options=[tenant["domain"] for tenant in tenants])
     email = st.text_input("E-mail")
     password = st.text_input("Senha", type="password")
 
