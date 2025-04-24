@@ -34,6 +34,9 @@ async def patients_overview_page():
         appointments = await appointments_repository.appointments(
             tenant_id=app_state.user.tenant_id, organization_id=organization_id
         )
+        risk = await patients_repository.patients_risk_group(
+            tenant_id=app_state.user.tenant_id, organization_id=organization_id
+        )
         if patients:
             st.subheader("Pacientes encontrados:")
             st.dataframe(patients)
@@ -47,3 +50,8 @@ async def patients_overview_page():
         if appointments:
             st.subheader("Pacientes com consultas:")
             st.dataframe(appointments)
+        if risk:
+            st.subheader("Pacientes com grupo de risco:")
+            st.dataframe(risk)
+        else:
+            st.warning("Nenhum paciente encontrado.")
