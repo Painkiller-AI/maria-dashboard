@@ -1,123 +1,184 @@
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+from pandas.tseries.offsets import MonthBegin, MonthEnd
 
 from external.repositories.appointments_repository import AppointmentsRepository
 from external.repositories.patients_repository import PatientsRepository
 from external.repositories.tenants_repository import TenantsRepository
+from shared.utils.calculate_nps import calculate_nps
 from state import app_state
 
 
 async def patients_overview_page():
     st.title("📊 CEMIG")
     organization_id = "cemig"
-    # organization_id = None
-    # organization_id_test = st.selectbox(
-    #     label="Organização",
-    #     options=["Todas", "cemig", "materdei", "a3data"],
-    #     index=0,
-    #     disabled=False,
-    # )
-    # org_button = st.button("Selecionar organização", key="org_button")
-    # if org_button:
-    #     if organization_id_test == "cemig":
-    #         organization_id = "cemig"
-    #     elif organization_id_test == "materdei":
-    #         organization_id = "materdei"
-    #     elif organization_id_test == "a3data":
-    #         organization_id = "materdei"
-    #     else:
-    #         organization_id = None
     tenant_domain = "maria-saude"
+    ano = 2025
+    mes = 3
+    data_limite = pd.to_datetime(f"{ano}-{mes}-01") + MonthEnd(0)
+    data_inicio = pd.to_datetime(f"{ano}-{mes}-01") - MonthBegin(0)
 
     if app_state.user:
         st.success(f"Bem-vindo, {app_state.user.full_name}")
-        with st.container(border=True):
-            # st.json(app_state.user.model_dump())
+        # st.json(app_state.user.model_dump())
 
-            tenants_repository = TenantsRepository()
-            patients_repository = PatientsRepository()
-            appointments_repository = AppointmentsRepository()
+        tenants_repository = TenantsRepository()
+        patients_repository = PatientsRepository()
+        appointments_repository = AppointmentsRepository()
 
-            tenant = await tenants_repository.get_tenant(by="id", value=app_state.user.tenant_id)
+        tenant = await tenants_repository.get_tenant(by="id", value=app_state.user.tenant_id)
 
-            if tenant and tenant["domain"] != tenant_domain:
-                st.error("Acesso negado. Você não tem permissão para acessar esta página.")
-                return
+        if tenant and tenant["domain"] != tenant_domain:
+            st.error("Acesso negado. Você não tem permissão para acessar esta página.")
+            return
 
-            patients = await patients_repository.patients_info(
-                tenant_id=app_state.user.tenant_id, organization_id=organization_id
-            )
-            patients_df = pd.DataFrame(patients)
+        patients = await patients_repository.patients_info(
+            tenant_id=app_state.user.tenant_id, organization_id=organization_id
+        )
+        patients_df = pd.DataFrame(patients)
 
-            score = await patients_repository.patients_score(
-                tenant_id=app_state.user.tenant_id, organization_id=organization_id
-            )
-            score_df = pd.DataFrame(score)
-            appointments = await appointments_repository.appointments(
-                tenant_id=app_state.user.tenant_id, organization_id=organization_id
-            )
-            appointments_df = pd.DataFrame(appointments)
-            risk = await patients_repository.patients_risk_group(
-                tenant_id=app_state.user.tenant_id, organization_id=organization_id
-            )
-            risk_df = pd.DataFrame(risk)
-            if patients:
-                st.subheader("Pacientes encontrados")
-                st.dataframe(patients_df)
-            else:
-                st.warning("Nenhum paciente encontrado.")
-            if score:
-                st.subheader("Pacientes com NPS:")
-                st.dataframe(score_df)
-            else:
-                st.warning("Nenhum paciente encontrado com valor de NPS.")
-            if appointments:
-                st.subheader("Total de consultas agendadas por profissional")
-                col1, col2, col3, col4, col5 = st.columns(5, border=False)
+        score = await patients_repository.patients_score(
+            tenant_id=app_state.user.tenant_id, organization_id=organization_id
+        )
+        score_df = pd.DataFrame(score)
+        appointments = await appointments_repository.appointments(
+            tenant_id=app_state.user.tenant_id, organization_id=organization_id
+        )
+        appointments_df = pd.DataFrame(appointments)
+        risk = await patients_repository.patients_risk_group(
+            tenant_id=app_state.user.tenant_id, organization_id=organization_id
+        )
+        if score:
+            with st.container(border=True, key="nps container"):
+                st.header("Índice NPS")
+                score_filtro = (score_df["created_at"].dt.year == ano) & (
+                    score_df["created_at"].dt.month == mes
+                )
+                score_df_filtered = score_df[score_filtro]
+                nps, perc_promotores, perc_detratores, perc_neutros = calculate_nps(
+                    score_df_filtered
+                )
+
+                fig = go.Figure(
+                    go.Indicator(
+                        mode="gauge+number",
+                        value=nps,
+                        delta={"reference": 0},
+                        gauge={
+                            "axis": {"range": [None, 100]},
+                            "bar": {"color": "black"},
+                            "steps": [
+                                {"range": [0, 50], "color": "red"},
+                                {"range": [50, 75], "color": "yellow"},
+                                {"range": [75, 100], "color": "green"},
+                            ],
+                        },
+                    )
+                )
+
+                fig.update_layout(height=400)
+
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+                st.download_button(
+                    label="Baixar dados do NPS",
+                    data=score_df_filtered.to_csv(index=False).encode("utf-8"),
+                    file_name="nps.csv",
+                    mime="text/csv",
+                )
+        else:
+            st.warning("Nenhum paciente encontrado com valor de NPS.")
+
+        if appointments:
+            with st.container(border=True, key="appointments container"):
+                st.header("Índices de agendamentos")
+                appointments_filtro = (appointments_df["created_at"].dt.year == ano) & (
+                    appointments_df["created_at"].dt.month == mes
+                )
+                appointments_df_filtered = appointments_df[appointments_filtro]
+                appointments_within_72h = appointments_df_filtered[
+                    appointments_df_filtered["within_72h"] == True
+                ]
+                total_appointments = appointments_df_filtered.shape[0]
+                total_appointments_within_72h = appointments_within_72h.shape[0]
+                perc_appointments_within_72h = (
+                    total_appointments_within_72h / total_appointments * 100
+                )
+                col1, col2 = st.columns(2)
                 with col1:
-                    st.metric(
-                        label="Concierge",
-                        value=len([a for a in appointments if a["care_team_role"] == "concierge"]),
-                        border=True,
+                    st.subheader("Agendamentos realizados em até 72 horas de demanda eletiva")
+                    st.markdown(
+                        f"""
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    margin-bottom: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    background-color: transparent;
+                    box-shadow: none;
+                    text-align: center;
+                ">
+                    <p style="font-size: 48px; font-weight: bold; color: #4CAF50; margin: 0;">
+                        {perc_appointments_within_72h:.1f}%
+                    </p>
+                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
+                        {total_appointments_within_72h} Agendamentos realizados em até 72 horas de demanda espontanea.
+                    </p>
+                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
+                        {total_appointments} Agendamentos realizados na competência.
+                    </p>
+                </div>
+                """,
+                        unsafe_allow_html=True,
                     )
                 with col2:
-                    st.metric(
-                        label="Médicos",
-                        value=len([a for a in appointments if a["care_team_role"] == "doctor"]),
-                        border=True,
+                    st.subheader("Taxa de absenteísmo")
+                    no_show_count = appointments_df_filtered[
+                        appointments_df_filtered["status"] == "no_show"
+                    ].shape[0]
+                    total_appointments_count = appointments_df_filtered[
+                        appointments_df_filtered["status"].isin(["no_show", "completed"])
+                    ].shape[0]
+
+                    st.markdown(
+                        f"""
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    margin-bottom: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    background-color: transparent;
+                    box-shadow: none;
+                    text-align: center;
+                ">
+                    <p style="font-size: 48px; font-weight: bold; color: #4CAF50; margin: 0;">
+                        {no_show_count / total_appointments_count:.1f}%
+                    </p>
+                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
+                        {no_show_count} Faltosos.
+                    </p>
+                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
+                        {total_appointments_count} Consultas agendadas e não realizadas.
+                    </p>
+                </div>
+                """,
+                        unsafe_allow_html=True,
                     )
-                with col3:
-                    st.metric(
-                        label="Psicólogos",
-                        value=len(
-                            appointments_df[appointments_df["care_team_role"] == "psychologist"]
-                        ),
-                        border=True,
-                    )
-                with col4:
-                    st.metric(
-                        label="Nutricionistas",
-                        value=len(
-                            appointments_df[appointments_df["care_team_role"] == "nutritionist"]
-                        ),
-                        border=True,
-                    )
-                with col5:
-                    st.metric(
-                        label="Enfermeiros",
-                        value=len(
-                            appointments_df[
-                                appointments_df["care_team_role"].str.contains(
-                                    "nurse", case=False, na=False
-                                )
-                            ]
-                        ),
-                        border=True,
-                    )
-                st.subheader("Pacientes com consultas")
-                st.dataframe(appointments)
-            if risk:
-                st.subheader("Pacientes com grupo de risco classificado")
-                st.dataframe(risk_df)
-            else:
-                st.warning("Nenhum paciente encontrado com grupo de risco classificado.")
+                st.download_button(
+                    label="Baixar dados de Agendamentos",
+                    data=appointments_df_filtered.to_csv(index=False).encode("utf-8"),
+                    file_name="appointments.csv",
+                    mime="text/csv",
+                )
+
+        else:
+            st.warning("Nenhum agendamento de consulta encontrado.")
