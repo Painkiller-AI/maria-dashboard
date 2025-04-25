@@ -14,8 +14,6 @@ async def main():
         page_icon="assets/maria-logo.svg",
     )
 
-    st.sidebar.title("Maria Saúde - Dashboard")
-
     if not app_state.user:
         await login_page()
     else:
