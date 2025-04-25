@@ -6,8 +6,8 @@ from state import app_state
 
 
 async def login_page():
-    cola, colb, colc, cold, cole = st.columns(5)
-    with colc:
+    cola, colb, colc = st.columns(3)
+    with colb:
         with open("assets/maria-logo.svg", "r") as f:
             svg = f.read()
 
