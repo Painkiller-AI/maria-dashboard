@@ -39,15 +39,48 @@ class PatientsRepository:
             where_clause = " AND ".join(filters) if filters else "1=1"
 
             query = text(f"""
-                SELECT p.id, u.created_at, p.aboard_at, MAX(cm.created_at) AS last_message_date, ou.organization_id, t.domain
-                FROM patients p
-                JOIN users u ON u.id = p.id
-                JOIN organizations_users ou ON ou.user_id = p.id
-                INNER JOIN chat_messages cm ON p.id = cm.user_id
-                INNER JOIN care_teams ct ON p.care_team_id = ct.id
-                left join tenants t on t.id = u.tenant_id
-                WHERE {where_clause}
-                GROUP BY p.id, u.created_at, p.aboard_at, ou.organization_id, t.domain;
+            select
+                CONCAT (hu.first_name,
+                ' ',
+                hu.last_name) as full_name,
+                hu.email,
+                hu.phone,
+                hu.gender,
+                hu.birth_date,
+                p.id,
+                u.created_at,
+                p.aboard_at,
+                MAX(cm.created_at) as last_message_date,
+                ou.organization_id,
+                t.domain
+            from
+                patients p
+            join human_users hu
+                            on
+                p.id = hu.id
+            join users u on
+                u.id = p.id
+            join organizations_users ou on
+                ou.user_id = p.id
+            left join chat_messages cm on
+                p.id = cm.user_id
+            left join care_teams ct on
+                p.care_team_id = ct.id
+            left join tenants t on
+                t.id = u.tenant_id
+            where {where_clause}
+            group by
+            hu.first_name,
+            hu.last_name,
+            hu.email,
+            hu.phone,
+            hu.gender,
+            hu.birth_date,
+            p.id,
+            u.created_at,
+            p.aboard_at,
+            ou.organization_id,
+            t.domain;
             """)
 
             result = await session.execute(query, params)

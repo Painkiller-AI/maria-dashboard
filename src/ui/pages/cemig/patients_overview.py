@@ -141,5 +141,5 @@ async def patients_overview_page():
                     mime="text/csv",
                 )
 
-    else:
-        st.warning("Nenhum agendamento de consulta encontrado.")
+        else:
+            st.warning("Nenhum agendamento de consulta encontrado.")
