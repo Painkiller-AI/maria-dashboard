@@ -52,6 +52,7 @@ class PatientsRepository:
                 p.aboard_at,
                 MAX(cm.created_at) as last_message_date,
                 ou.organization_id,
+                org.name as organization_name,
                 t.domain
             from
                 patients p
@@ -62,6 +63,8 @@ class PatientsRepository:
                 u.id = p.id
             join organizations_users ou on
                 ou.user_id = p.id
+            left join organizations org on
+                ou.organization_id = org.id
             left join chat_messages cm on
                 p.id = cm.user_id
             left join care_teams ct on
@@ -80,6 +83,7 @@ class PatientsRepository:
             u.created_at,
             p.aboard_at,
             ou.organization_id,
+            org.name,
             t.domain;
             """)
 
@@ -109,9 +113,11 @@ class PatientsRepository:
             SELECT n.score,
             n.created_at,
             ou.organization_id,
+            org.name as organization_name,
             t.domain
            FROM nps n
              LEFT JOIN organizations_users ou ON ou.user_id = n.patient_id
+              LEFT JOIN organizations org ON ou.organization_id = org.id
              LEFT JOIN tenants t ON n.tenant_id = t.id
           WHERE {where_clause};
             """)
@@ -144,6 +150,7 @@ class PatientsRepository:
                     (cpp.patient_id) cpp.patient_id,
                     cp.name as risk_group,
                     ou.organization_id,
+                    org.name as organization_name,
                     t.domain
                 from
                     public.care_plan_patients cpp
@@ -151,6 +158,8 @@ class PatientsRepository:
                     cpp.care_plan_id = cp.id
                 join organizations_users ou on
                     ou.user_id = cpp.patient_id
+                left join organizations org on     
+                    ou.organization_id = org.id
                 join tenants t on
                     cpp.tenant_id = t.id
                 where
