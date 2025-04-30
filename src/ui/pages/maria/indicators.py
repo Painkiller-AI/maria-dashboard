@@ -12,7 +12,6 @@ from state import app_state
 async def indicators_page():
     st.title("📊 Indicadores Maria Saúde")
     tenant_domain = "maria-saude"
-    tenant_id = "03686c56-dec7-4c6d-8b0a-c6a6c448736e"
 
     if app_state.user:
         st.success(f"Bem-vindo, {app_state.user.full_name}")
@@ -21,26 +20,26 @@ async def indicators_page():
         patients_repository = PatientsRepository()
         appointments_repository = AppointmentsRepository()
 
-        tenant = await tenants_repository.get_tenant(by="id", value=tenant_id)
+        tenant = await tenants_repository.get_tenant(by="id", value=app_state.user.tenant_id)
 
         if tenant and tenant["domain"] != tenant_domain:
             st.error("Acesso negado. Você não tem permissão para acessar esta página.")
             return
 
         patients = await patients_repository.patients_info(
-            tenant_id=tenant_id,
+            tenant_id=app_state.user.tenant_id,
         )
         patients_df = pd.DataFrame(patients)
         score = await patients_repository.patients_score(
-            tenant_id=tenant_id,
+            tenant_id=app_state.user.tenant_id,
         )
         score_df = pd.DataFrame(score)
         appointments = await appointments_repository.appointments(
-            tenant_id=tenant_id,
+            tenant_id=app_state.user.tenant_id,
         )
         appointments_df = pd.DataFrame(appointments)
         risk = await patients_repository.patients_risk_group(
-            tenant_id=tenant_id,
+            tenant_id=app_state.user.tenant_id,
         )
         risk_df = pd.DataFrame(risk)
 
