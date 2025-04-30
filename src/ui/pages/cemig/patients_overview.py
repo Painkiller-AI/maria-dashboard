@@ -109,32 +109,11 @@ async def patients_overview_page():
                 with col1:
                     st.subheader("Agendamentos realizados em até 72 horas de demanda eletiva")
                     st.markdown(
-                        f"""
-                <div style="
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 20px;
-                    margin-bottom: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 10px;
-                    background-color: transparent;
-                    box-shadow: none;
-                    text-align: center;
-                ">
-                    <p style="font-size: 48px; font-weight: bold; color: #4CAF50; margin: 0;">
-                        {perc_appointments_within_72h:.1f}%
-                    </p>
-                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
-                        {total_appointments_within_72h} Agendamentos realizados em até 72 horas de demanda espontanea.
-                    </p>
-                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
-                        {total_appointments} Agendamentos realizados na competência.
-                    </p>
-                </div>
-                """,
-                        unsafe_allow_html=True,
+                        f"**✅ Percentual em até 72h:** {perc_appointments_within_72h:.1f}%"
+                    )
+                    st.markdown(f"**📆 Agendamentos ≤ 72h:** {total_appointments_within_72h}")
+                    st.markdown(
+                        f"**📋 Total de agendamentos na competência:** {total_appointments}"
                     )
                 with col2:
                     st.subheader("Taxa de absenteísmo")
@@ -145,34 +124,16 @@ async def patients_overview_page():
                         appointments_df_filtered["status"].isin(["no_show", "completed"])
                     ].shape[0]
 
-                    st.markdown(
-                        f"""
-                <div style="
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 20px;
-                    margin-bottom: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 10px;
-                    background-color: transparent;
-                    box-shadow: none;
-                    text-align: center;
-                ">
-                    <p style="font-size: 48px; font-weight: bold; color: #4CAF50; margin: 0;">
-                        {no_show_count / total_appointments_count:.1f}%
-                    </p>
-                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
-                        {no_show_count} Faltosos.
-                    </p>
-                    <p style="font-size: 16px; color: #888; margin-top: 8px;">
-                        {total_appointments_count} Consultas agendadas e não realizadas.
-                    </p>
-                </div>
-                """,
-                        unsafe_allow_html=True,
+                    no_show_rate = (
+                        (no_show_count / total_appointments_count) * 100
+                        if total_appointments_count
+                        else 0
                     )
+
+                    st.markdown(f"**📉 Taxa de Faltas:** {no_show_rate:.1f}%")
+                    st.markdown(f"**🚫 Total de Faltosos:** {no_show_count}")
+                    st.markdown(f"**📅 Agendadas e Não Realizadas:** {total_appointments_count}")
+
                 st.download_button(
                     label="Baixar dados de Agendamentos",
                     data=appointments_df_filtered.to_csv(index=False).encode("utf-8"),

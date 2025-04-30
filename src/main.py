@@ -3,8 +3,14 @@ import asyncio
 import streamlit as st
 
 from state import app_state
+from ui.pages.cemig.patients_overview import patients_overview_page
 from ui.pages.login import login_page
-from ui.pages.patients_overview import patients_overview_page
+from ui.pages.maria.indicators import indicators_page
+
+PAGES = {
+    "CEMIG - Visão Geral dos Pacientes": patients_overview_page,
+    "Maria Saúde - Indicadores": indicators_page,
+}
 
 
 async def main():
@@ -19,7 +25,9 @@ async def main():
     if not app_state.user:
         await login_page()
     else:
-        await patients_overview_page()
+        st.sidebar.title("Navegação")
+        selected_page = st.sidebar.radio("Escolha uma página", list(PAGES.keys()))
+        await PAGES[selected_page]()
 
 
 if __name__ == "__main__":

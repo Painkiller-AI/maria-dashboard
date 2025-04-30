@@ -39,15 +39,52 @@ class PatientsRepository:
             where_clause = " AND ".join(filters) if filters else "1=1"
 
             query = text(f"""
-                SELECT p.id, u.created_at, p.aboard_at, MAX(cm.created_at) AS last_message_date, ou.organization_id, t.domain
-                FROM patients p
-                JOIN users u ON u.id = p.id
-                JOIN organizations_users ou ON ou.user_id = p.id
-                INNER JOIN chat_messages cm ON p.id = cm.user_id
-                INNER JOIN care_teams ct ON p.care_team_id = ct.id
-                left join tenants t on t.id = u.tenant_id
-                WHERE {where_clause}
-                GROUP BY p.id, u.created_at, p.aboard_at, ou.organization_id, t.domain;
+            select
+                CONCAT (hu.first_name,
+                ' ',
+                hu.last_name) as full_name,
+                hu.email,
+                hu.phone,
+                hu.gender,
+                hu.birth_date,
+                p.id,
+                u.created_at,
+                p.aboard_at,
+                MAX(cm.created_at) as last_message_date,
+                ou.organization_id,
+                org.name as organization_name,
+                t.domain
+            from
+                patients p
+            join human_users hu
+                            on
+                p.id = hu.id
+            join users u on
+                u.id = p.id
+            join organizations_users ou on
+                ou.user_id = p.id
+            left join organizations org on
+                ou.organization_id = org.id
+            left join chat_messages cm on
+                p.id = cm.user_id
+            left join care_teams ct on
+                p.care_team_id = ct.id
+            left join tenants t on
+                t.id = u.tenant_id
+            where {where_clause}
+            group by
+            hu.first_name,
+            hu.last_name,
+            hu.email,
+            hu.phone,
+            hu.gender,
+            hu.birth_date,
+            p.id,
+            u.created_at,
+            p.aboard_at,
+            ou.organization_id,
+            org.name,
+            t.domain;
             """)
 
             result = await session.execute(query, params)
@@ -76,9 +113,11 @@ class PatientsRepository:
             SELECT n.score,
             n.created_at,
             ou.organization_id,
+            org.name as organization_name,
             t.domain
            FROM nps n
              LEFT JOIN organizations_users ou ON ou.user_id = n.patient_id
+              LEFT JOIN organizations org ON ou.organization_id = org.id
              LEFT JOIN tenants t ON n.tenant_id = t.id
           WHERE {where_clause};
             """)
@@ -111,6 +150,7 @@ class PatientsRepository:
                     (cpp.patient_id) cpp.patient_id,
                     cp.name as risk_group,
                     ou.organization_id,
+                    org.name as organization_name,
                     t.domain
                 from
                     public.care_plan_patients cpp
@@ -118,6 +158,8 @@ class PatientsRepository:
                     cpp.care_plan_id = cp.id
                 join organizations_users ou on
                     ou.user_id = cpp.patient_id
+                left join organizations org on     
+                    ou.organization_id = org.id
                 join tenants t on
                     cpp.tenant_id = t.id
                 where
