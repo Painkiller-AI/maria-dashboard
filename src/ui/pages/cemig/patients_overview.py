@@ -42,7 +42,7 @@ async def patients_overview_page():
             tenant_id=app_state.user.tenant_id, organization_id=organization_id
         )
         score_df = pd.DataFrame(score)
-        appointments = await appointments_repository.appointments(
+        appointments = await appointments_repository.video_appointments(
             tenant_id=app_state.user.tenant_id, organization_id=organization_id
         )
         appointments_df = pd.DataFrame(appointments)

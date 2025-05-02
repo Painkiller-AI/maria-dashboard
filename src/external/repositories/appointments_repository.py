@@ -6,7 +6,7 @@ from external.database.connection import db_connection
 
 
 class AppointmentsRepository:
-    async def appointments(
+    async def video_appointments(
         self, *, tenant_id: str | None = None, organization_id: str | None = None
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
@@ -34,6 +34,7 @@ class AppointmentsRepository:
             round(EXTRACT(epoch FROM ca.start_at - ca.created_at) / 3600::numeric, 0)::integer AS diff_hours,
             (EXTRACT(epoch FROM ca.start_at - ca.created_at) / 3600::numeric) <= 72::numeric AS within_72h,
             ou.organization_id,
+            o.name AS organization_name,
             ca.status,
             t.domain
            FROM calendar_appointment ca

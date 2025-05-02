@@ -34,7 +34,7 @@ async def indicators_page():
             tenant_id=app_state.user.tenant_id,
         )
         score_df = pd.DataFrame(score)
-        appointments = await appointments_repository.appointments(
+        appointments = await appointments_repository.video_appointments(
             tenant_id=app_state.user.tenant_id,
         )
         appointments_df = pd.DataFrame(appointments)
@@ -42,19 +42,77 @@ async def indicators_page():
             tenant_id=app_state.user.tenant_id,
         )
         risk_df = pd.DataFrame(risk)
+        excluded_orgs = {"Cortesia", "Lazy Org"}
+        organization_list = sorted(set(patients_df["organization_name"].unique()) - excluded_orgs)
+        col_filter1, col_filter2, col_filter3, col_filter4, col_filter5, col_filter6 = st.columns(6)
+        with col_filter1:
+            organization_options = ["Todas"] + organization_list
+            selected_org = st.selectbox(
+                "Selecione a Organização",
+                options=organization_options,
+                index=0,
+            )
+            if selected_org != "Todas":
+                filtered_patients_df = patients_df[patients_df["organization_name"] == selected_org]
+                filtered_appointments_df = appointments_df[
+                    appointments_df["organization_name"] == selected_org
+                ]
+                filtered_risk_df = risk_df[risk_df["organization_name"] == selected_org]
+            else:
+                filtered_patients_df = patients_df[
+                    ~patients_df["organization_name"].isin(excluded_orgs)
+                ]
+                filtered_appointments_df = appointments_df[
+                    ~appointments_df["organization_name"].isin(excluded_orgs)
+                ]
+                filtered_risk_df = risk_df[~risk_df["organization_name"].isin(excluded_orgs)]
 
-        if patients and risk:
+        with col_filter2:
+            selected_date_range = st.date_input(
+                "Selecione o Intervalo de Datas",
+                value=(pd.to_datetime("today").date(), pd.to_datetime("today").date()),
+                min_value=pd.to_datetime("2023-01-01").date(),
+                max_value=pd.to_datetime("today").date(),
+                format="DD-MM-YYYY",
+            )
+
+            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                start_date, end_date = selected_date_range
+                filtered_patients_df = filtered_patients_df[
+                    (filtered_patients_df["created_at"].dt.date >= start_date)
+                    & (filtered_patients_df["created_at"].dt.date <= end_date)
+                ]
+                filtered_appointments_df = filtered_appointments_df[
+                    (filtered_appointments_df["start_at"].dt.date >= start_date)
+                    & (filtered_appointments_df["start_at"].dt.date <= end_date)
+                ]
+        if filtered_appointments_df is not None:
+            st.subheader("Agendamentos")
+            col_a1, col_a2, col_a3, cola4 = st.columns(4)
+            # st.write(filtered_appointments_df)
+            with col_a1:
+                st.metric(
+                    label="Agendamentos realizados",
+                    value=f"{len(filtered_appointments_df):,}".replace(",", "."),
+                    border=True,
+                )
+        else:
+            st.warning("Nenhum agendamento encontrado.")
+
+        if (filtered_patients_df is not None) and (filtered_risk_df is not None):
             st.subheader("Análise Cadastral")
+            # st.write(filtered_patients_df)
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric(
                     label="Pessoas cadastradas",
-                    value=f"{len(patients_df):,}".replace(",", "."),
+                    value=f"{len(filtered_patients_df):,}".replace(",", "."),
                     border=True,
                 )
             with col2:
-                onboarding_list = patients_df[
-                    (patients_df["aboard_at"].notna()) | (patients_df["last_message_date"].notna())
+                onboarding_list = filtered_patients_df[
+                    (filtered_patients_df["aboard_at"].notna())
+                    | (filtered_patients_df["last_message_date"].notna())
                 ]
                 st.metric(
                     label="Pessoas com Onboarding realizado",
@@ -64,14 +122,24 @@ async def indicators_page():
             with col3:
                 st.metric(
                     label="Responderam Questionário de Risco",
-                    value=f"{(len(risk_df) / len(patients_df) * 100):.1f}".replace(".", ",") + "%",
+                    value=(
+                        "N/A"
+                        if len(filtered_patients_df) == 0
+                        else f"{(len(filtered_risk_df) / len(filtered_patients_df) * 100):.1f}".replace(
+                            ".", ","
+                        )
+                    )
+                    + "%",
                     border=True,
                 )
-
             st.subheader("Saúde Populacional")
             col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
             genero_pct = (
-                patients_df["gender"].value_counts(normalize=True).mul(100).round(1).reset_index()
+                filtered_patients_df["gender"]
+                .value_counts(normalize=True)
+                .mul(100)
+                .round(1)
+                .reset_index()
             )
             genero_pct_filtrado = genero_pct[genero_pct["gender"].isin(["male", "female"])]
 
@@ -105,12 +173,14 @@ async def indicators_page():
 
                     st.plotly_chart(fig)
                 with col_s2:
-                    patients_df["birth_date"] = pd.to_datetime(
-                        patients_df["birth_date"], format="%Y-%m-%d", errors="coerce"
+                    filtered_patients_df["birth_date"] = pd.to_datetime(
+                        filtered_patients_df["birth_date"], format="%Y-%m-%d", errors="coerce"
                     )
-                    patients_df["idade"] = patients_df["birth_date"].apply(calcular_idade)
+                    filtered_patients_df["idade"] = filtered_patients_df["birth_date"].apply(
+                        calcular_idade
+                    )
 
-                    media_idade = patients_df["idade"].mean()
+                    media_idade = filtered_patients_df["idade"].mean()
                     st.metric(
                         label="Média de Idade",
                         value=f"{(media_idade):.0f} anos",
