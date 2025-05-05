@@ -70,7 +70,7 @@ async def indicators_page():
         with col_filter2:
             selected_date_range = st.date_input(
                 "Selecione o Intervalo de Datas",
-                value=(pd.to_datetime("today").date(), pd.to_datetime("today").date()),
+                value=(pd.to_datetime("2023-01-01").date(), pd.to_datetime("today").date()),
                 min_value=pd.to_datetime("2023-01-01").date(),
                 max_value=pd.to_datetime("today").date(),
                 format="DD-MM-YYYY",
@@ -125,11 +125,10 @@ async def indicators_page():
                     value=(
                         "N/A"
                         if len(filtered_patients_df) == 0
-                        else f"{(len(filtered_risk_df) / len(filtered_patients_df) * 100):.1f}".replace(
+                        else f"{(len(filtered_risk_df) / len(filtered_patients_df) * 100):.1f} %".replace(
                             ".", ","
                         )
-                    )
-                    + "%",
+                    ),
                     border=True,
                 )
             st.subheader("Saúde Populacional")
@@ -179,11 +178,16 @@ async def indicators_page():
                     filtered_patients_df["idade"] = filtered_patients_df["birth_date"].apply(
                         calcular_idade
                     )
+                    if len(filtered_patients_df) == 0:
+                        media_idade = "N/A"
+                        idade_formatada = media_idade
+                    else:
+                        media_idade = filtered_patients_df["idade"].mean()
+                        idade_formatada = f"{media_idade:.0f} anos"
 
-                    media_idade = filtered_patients_df["idade"].mean()
                     st.metric(
                         label="Média de Idade",
-                        value=f"{(media_idade):.0f} anos",
+                        value=idade_formatada,
                         border=True,
                     )
 
