@@ -12,7 +12,7 @@ from state import app_state
 
 async def patients_overview_page():
     st.title("📊 CEMIG")
-    organization_id = "cemig"
+    organization_id = ["cemig"]
     tenant_domain = "maria-saude"
     ano = 2025
     mes = 3
