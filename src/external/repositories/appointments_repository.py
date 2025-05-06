@@ -1,13 +1,19 @@
+import datetime
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from external.database.connection import db_connection
 
 
 class AppointmentsRepository:
     async def video_appointments(
-        self, *, tenant_id: str | None = None, organization_id: str | None = None
+        self,
+        *,
+        tenant_id: str | None = None,
+        organization_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
             filters = []
@@ -18,8 +24,16 @@ class AppointmentsRepository:
                 params["tenant_id"] = tenant_id
 
             if organization_id:
-                filters.append("ou.organization_id = :organization_id")
+                filters.append("ou.organization_id IN :organization_id")
                 params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("ca.start_at >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("ca.start_at <= :end_date")
+                params["end_date"] = end_date
 
             where_clause = " AND ".join(filters) if filters else "1=1"
 
@@ -49,14 +63,20 @@ class AppointmentsRepository:
             WHERE {where_clause}
             ORDER BY (round(EXTRACT(epoch FROM ca.start_at - ca.created_at) / 3600::numeric, 0)::integer);
             """)
-
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
             result = await session.execute(query, params)
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
             return data
 
     async def chat_appointments(
-        self, *, tenant_id: str | None = None, organization_id: str | None = None
+        self,
+        *,
+        tenant_id: str | None = None,
+        organization_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
             filters = []
@@ -67,8 +87,16 @@ class AppointmentsRepository:
                 params["tenant_id"] = tenant_id
 
             if organization_id:
-                filters.append("ou.organization_id = :organization_id")
+                filters.append("ou.organization_id IN :organization_id")
                 params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("hs.created_at >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("hs.created_at <= :end_date")
+                params["end_date"] = end_date
 
             where_clause = " AND ".join(filters) if filters else "1=1"
 
@@ -127,7 +155,8 @@ class AppointmentsRepository:
                                 t.id = hs.tenant_id
                             where {where_clause}
             """)
-
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
             result = await session.execute(query, params)
             rows = result.mappings().all()
             data = [dict(row) for row in rows]

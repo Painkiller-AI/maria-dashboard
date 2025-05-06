@@ -1,12 +1,17 @@
+import locale
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 from external.repositories.appointments_repository import AppointmentsRepository
+from external.repositories.orgazination_repository import OrganizationRepository
 from external.repositories.patients_repository import PatientsRepository
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.get_datetime import calcular_idade
 from state import app_state
+
+locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
 
 
 async def indicators_page():
@@ -19,6 +24,11 @@ async def indicators_page():
         tenants_repository = TenantsRepository()
         patients_repository = PatientsRepository()
         appointments_repository = AppointmentsRepository()
+        orgazination_repository = OrganizationRepository()
+        orgazination = await orgazination_repository.list_organization(
+            tenant_id=app_state.user.tenant_id,
+        )
+        organization_df = pd.DataFrame(orgazination)
 
         tenant = await tenants_repository.get_tenant(by="id", value=app_state.user.tenant_id)
 
@@ -26,24 +36,11 @@ async def indicators_page():
             st.error("Acesso negado. Você não tem permissão para acessar esta página.")
             return
 
-        patients = await patients_repository.patients_info(
-            tenant_id=app_state.user.tenant_id,
+        excluded_orgs = {"Cortesia", "Lazy Org", "Gabriel Teste de Organização"}
+        organization_list = sorted(
+            set(organization_df["organization_name"].unique()) - excluded_orgs
         )
-        patients_df = pd.DataFrame(patients)
-        score = await patients_repository.patients_score(
-            tenant_id=app_state.user.tenant_id,
-        )
-        score_df = pd.DataFrame(score)
-        appointments = await appointments_repository.video_appointments(
-            tenant_id=app_state.user.tenant_id,
-        )
-        appointments_df = pd.DataFrame(appointments)
-        risk = await patients_repository.patients_risk_group(
-            tenant_id=app_state.user.tenant_id,
-        )
-        risk_df = pd.DataFrame(risk)
-        excluded_orgs = {"Cortesia", "Lazy Org"}
-        organization_list = sorted(set(patients_df["organization_name"].unique()) - excluded_orgs)
+
         col_filter1, col_filter2, col_filter3, col_filter4, col_filter5, col_filter6 = st.columns(6)
         with col_filter1:
             organization_options = ["Todas"] + organization_list
@@ -53,19 +50,11 @@ async def indicators_page():
                 index=0,
             )
             if selected_org != "Todas":
-                filtered_patients_df = patients_df[patients_df["organization_name"] == selected_org]
-                filtered_appointments_df = appointments_df[
-                    appointments_df["organization_name"] == selected_org
-                ]
-                filtered_risk_df = risk_df[risk_df["organization_name"] == selected_org]
+                selected_org_ids = organization_df[
+                    organization_df["organization_name"] == selected_org
+                ]["organization_id"].tolist()
             else:
-                filtered_patients_df = patients_df[
-                    ~patients_df["organization_name"].isin(excluded_orgs)
-                ]
-                filtered_appointments_df = appointments_df[
-                    ~appointments_df["organization_name"].isin(excluded_orgs)
-                ]
-                filtered_risk_df = risk_df[~risk_df["organization_name"].isin(excluded_orgs)]
+                selected_org_ids = organization_df["organization_id"].unique().tolist()
 
         with col_filter2:
             selected_date_range = st.date_input(
@@ -73,46 +62,126 @@ async def indicators_page():
                 value=(pd.to_datetime("2023-01-01").date(), pd.to_datetime("today").date()),
                 min_value=pd.to_datetime("2023-01-01").date(),
                 max_value=pd.to_datetime("today").date(),
-                format="DD-MM-YYYY",
+                format="DD/MM/YYYY",
             )
 
-            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                start_date, end_date = selected_date_range
-                filtered_patients_df = filtered_patients_df[
-                    (filtered_patients_df["created_at"].dt.date >= start_date)
-                    & (filtered_patients_df["created_at"].dt.date <= end_date)
-                ]
-                filtered_appointments_df = filtered_appointments_df[
-                    (filtered_appointments_df["start_at"].dt.date >= start_date)
-                    & (filtered_appointments_df["start_at"].dt.date <= end_date)
-                ]
-        if filtered_appointments_df is not None:
+        if len(selected_date_range) == 2:
+            start_date, end_date = selected_date_range
+        else:
+            start_date = selected_date_range[0]
+            end_date = pd.to_datetime("today").date()
+
+        patients = await patients_repository.patients_info(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        patients_df = pd.DataFrame(patients)
+        score = await patients_repository.patients_score(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        score_df = pd.DataFrame(score)
+        appointments = await appointments_repository.video_appointments(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        appointments_df = pd.DataFrame(appointments)
+        risk = await patients_repository.patients_risk_group(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        chat_appointments = await appointments_repository.chat_appointments(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        chat_appointments_df = pd.DataFrame(chat_appointments)
+        risk_df = pd.DataFrame(risk)
+        if not appointments_df.empty:
             st.subheader("Agendamentos")
             col_a1, col_a2, col_a3, cola4 = st.columns(4)
-            # st.write(filtered_appointments_df)
             with col_a1:
                 st.metric(
                     label="Agendamentos realizados",
-                    value=f"{len(filtered_appointments_df):,}".replace(",", "."),
+                    value=f"{len(appointments_df):,}".replace(",", "."),
                     border=True,
                 )
+
+            appointments_df["created_at_date"] = pd.to_datetime(
+                appointments_df["created_at"]
+            ).dt.date
+            all_dates = pd.DataFrame(
+                {"created_at_date": pd.date_range(start=start_date, end=end_date)}
+            )
+            all_dates["created_at_date"] = pd.to_datetime(all_dates["created_at_date"]).dt.date
+
+            daily_appointments = (
+                appointments_df.groupby("created_at_date").size().reset_index(name="Quantidade")
+            )
+
+            daily_appointments_all_dates = all_dates.merge(
+                daily_appointments, on="created_at_date", how="left"
+            ).fillna(0)
+
+            daily_appointments_all_dates["Data"] = pd.to_datetime(
+                daily_appointments_all_dates["created_at_date"]
+            ).dt.strftime("%d/%m/%Y")
+
+            fig = px.area(
+                daily_appointments_all_dates,
+                x="Data",
+                y="Quantidade",
+                title="Agendamentos por Dia",
+                color_discrete_sequence=px.colors.qualitative.Dark24_r,
+            )
+
+            fig.update_layout(
+                xaxis=dict(
+                    rangeslider=dict(visible=False),
+                    tickangle=-45,
+                ),
+                xaxis_title="Data",
+                yaxis_title="Quantidade",
+            )
+            with st.container(border=True):
+                st.plotly_chart(fig, use_container_width=True)
+
         else:
             st.warning("Nenhum agendamento encontrado.")
 
-        if (filtered_patients_df is not None) and (filtered_risk_df is not None):
+        if not chat_appointments_df.empty:
+            st.subheader("Atendimentos via Chat")
+            col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+            with col_c1:
+                st.metric(
+                    label="Atendimentos via Chat realizados",
+                    value=f"{len(chat_appointments_df):,}".replace(",", "."),
+                    border=True,
+                )
+        else:
+            st.warning("Nenhum atendimento via chat encontrado.")
+
+        if not patients_df.empty:
             st.subheader("Análise Cadastral")
-            # st.write(filtered_patients_df)
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric(
                     label="Pessoas cadastradas",
-                    value=f"{len(filtered_patients_df):,}".replace(",", "."),
+                    value=f"{len(patients_df):,}".replace(",", "."),
                     border=True,
                 )
             with col2:
-                onboarding_list = filtered_patients_df[
-                    (filtered_patients_df["aboard_at"].notna())
-                    | (filtered_patients_df["last_message_date"].notna())
+                onboarding_list = patients_df[
+                    (patients_df["aboard_at"].notna()) | (patients_df["last_message_date"].notna())
                 ]
                 st.metric(
                     label="Pessoas com Onboarding realizado",
@@ -124,21 +193,16 @@ async def indicators_page():
                     label="Responderam Questionário de Risco",
                     value=(
                         "N/A"
-                        if len(filtered_patients_df) == 0
-                        else f"{(len(filtered_risk_df) / len(filtered_patients_df) * 100):.1f} %".replace(
-                            ".", ","
-                        )
+                        if len(patients_df) == 0
+                        else f"{(len(risk_df) / len(patients_df) * 100):.1f} %".replace(".", ",")
                     ),
                     border=True,
                 )
+
             st.subheader("Saúde Populacional")
             col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
             genero_pct = (
-                filtered_patients_df["gender"]
-                .value_counts(normalize=True)
-                .mul(100)
-                .round(1)
-                .reset_index()
+                patients_df["gender"].value_counts(normalize=True).mul(100).round(1).reset_index()
             )
             genero_pct_filtrado = genero_pct[genero_pct["gender"].isin(["male", "female"])]
 
@@ -172,17 +236,15 @@ async def indicators_page():
 
                     st.plotly_chart(fig)
                 with col_s2:
-                    filtered_patients_df["birth_date"] = pd.to_datetime(
-                        filtered_patients_df["birth_date"], format="%Y-%m-%d", errors="coerce"
+                    patients_df["birth_date"] = pd.to_datetime(
+                        patients_df["birth_date"], format="%Y-%m-%d", errors="coerce"
                     )
-                    filtered_patients_df["idade"] = filtered_patients_df["birth_date"].apply(
-                        calcular_idade
-                    )
-                    if len(filtered_patients_df) == 0:
+                    patients_df["idade"] = patients_df["birth_date"].apply(calcular_idade)
+                    if len(patients_df) == 0:
                         media_idade = "N/A"
                         idade_formatada = media_idade
                     else:
-                        media_idade = filtered_patients_df["idade"].mean()
+                        media_idade = patients_df["idade"].mean()
                         idade_formatada = f"{media_idade:.0f} anos"
 
                     st.metric(
