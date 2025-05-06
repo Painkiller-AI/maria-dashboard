@@ -10,7 +10,7 @@ class AppointmentsRepository:
     async def video_appointments(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
         organization_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
@@ -70,10 +70,10 @@ class AppointmentsRepository:
             data = [dict(row) for row in rows]
             return data
 
-    async def chat_appointments(
+    async def chat_info(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
         organization_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,

@@ -98,7 +98,7 @@ async def indicators_page():
             start_date=start_date,
             end_date=end_date,
         )
-        chat_appointments = await appointments_repository.chat_appointments(
+        chat_appointments = await appointments_repository.chat_info(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
             start_date=start_date,

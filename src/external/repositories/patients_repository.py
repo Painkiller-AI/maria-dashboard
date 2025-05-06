@@ -10,7 +10,7 @@ class PatientsRepository:
     async def patients_info(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
         organization_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
@@ -98,7 +98,7 @@ class PatientsRepository:
     async def patients_score(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
         organization_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
@@ -149,7 +149,7 @@ class PatientsRepository:
     async def patients_risk_group(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
         organization_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,

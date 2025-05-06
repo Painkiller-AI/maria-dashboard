@@ -9,7 +9,7 @@ class OrganizationRepository:
     async def list_organization(
         self,
         *,
-        tenant_id: str | None = None,
+        tenant_id: str,
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
             filters = []
