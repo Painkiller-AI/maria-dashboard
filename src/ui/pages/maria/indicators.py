@@ -1,5 +1,3 @@
-import locale
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -10,8 +8,6 @@ from external.repositories.patients_repository import PatientsRepository
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.get_datetime import calcular_idade
 from state import app_state
-
-locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
 
 
 async def indicators_page():
