@@ -1,17 +1,15 @@
-import locale
-
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from external.repositories.appointments_repository import AppointmentsRepository
 from external.repositories.orgazination_repository import OrganizationRepository
 from external.repositories.patients_repository import PatientsRepository
 from external.repositories.tenants_repository import TenantsRepository
+from shared.utils.calculate_nps import calculate_nps
 from shared.utils.get_datetime import calcular_idade
 from state import app_state
-
-locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
 
 
 async def indicators_page():
@@ -59,7 +57,10 @@ async def indicators_page():
         with col_filter2:
             selected_date_range = st.date_input(
                 "Selecione o Intervalo de Datas",
-                value=(pd.to_datetime("2023-01-01").date(), pd.to_datetime("today").date()),
+                value=(
+                    (pd.to_datetime("today").date() - pd.DateOffset(months=1)).date(),
+                    pd.to_datetime("today").date(),
+                ),
                 min_value=pd.to_datetime("2023-01-01").date(),
                 max_value=pd.to_datetime("today").date(),
                 format="DD/MM/YYYY",
@@ -78,6 +79,15 @@ async def indicators_page():
             end_date=end_date,
         )
         patients_df = pd.DataFrame(patients)
+
+        patients_h_group = await patients_repository.patients_health_group(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        patients_heatlh_group_df = pd.DataFrame(patients_h_group)
+
         score = await patients_repository.patients_score(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
@@ -85,6 +95,7 @@ async def indicators_page():
             end_date=end_date,
         )
         score_df = pd.DataFrame(score)
+
         appointments = await appointments_repository.video_appointments(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
@@ -92,12 +103,14 @@ async def indicators_page():
             end_date=end_date,
         )
         appointments_df = pd.DataFrame(appointments)
+
         risk = await patients_repository.patients_risk_group(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
             start_date=start_date,
             end_date=end_date,
         )
+        risk_df = pd.DataFrame(risk)
         chat_appointments = await appointments_repository.chat_info(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
@@ -105,7 +118,7 @@ async def indicators_page():
             end_date=end_date,
         )
         chat_appointments_df = pd.DataFrame(chat_appointments)
-        risk_df = pd.DataFrame(risk)
+
         if not appointments_df.empty:
             st.subheader("Agendamentos")
             col_a1, col_a2, col_a3, cola4 = st.columns(4)
@@ -173,13 +186,54 @@ async def indicators_page():
         if not patients_df.empty:
             st.subheader("Análise Cadastral")
             col1, col2, col3, col4 = st.columns(4)
+
             with col1:
+                if not score_df.empty:
+                    nps, perc_promotores, perc_detratores, perc_neutros = calculate_nps(score_df)
+
+                    fig = go.Figure(
+                        go.Indicator(
+                            mode="gauge+number",
+                            value=nps,
+                            delta=None,
+                            gauge={
+                                "axis": {"range": [None, 100]},
+                                "bar": {"color": "black"},
+                                "steps": [
+                                    {"range": [0, 50], "color": "red"},
+                                    {"range": [50, 75], "color": "yellow"},
+                                    {"range": [75, 100], "color": "green"},
+                                ],
+                            },
+                        )
+                    )
+
+                    fig.update_layout(
+                        height=200,
+                        margin=dict(t=25, b=25, l=30, r=30),
+                    )
+                    with st.container(border=True):
+                        st.text("NPS")
+                        st.plotly_chart(
+                            fig, use_container_width=False, config={"displayModeBar": False}
+                        )
+                else:
+                    st.metric(
+                        label="NPS",
+                        value="N/A",
+                        delta=None,
+                        delta_color="normal",
+                        border=True,
+                    )
+
+            with col2:
                 st.metric(
                     label="Pessoas cadastradas",
                     value=f"{len(patients_df):,}".replace(",", "."),
                     border=True,
                 )
-            with col2:
+
+            with col3:
                 onboarding_list = patients_df[
                     (patients_df["aboard_at"].notna()) | (patients_df["last_message_date"].notna())
                 ]
@@ -188,18 +242,69 @@ async def indicators_page():
                     value=f"{len(onboarding_list):,}".replace(",", "."),
                     border=True,
                 )
-            with col3:
-                st.metric(
-                    label="Responderam Questionário de Risco",
-                    value=(
-                        "N/A"
-                        if len(patients_df) == 0
-                        else f"{(len(risk_df) / len(patients_df) * 100):.1f} %".replace(".", ",")
-                    ),
-                    border=True,
+
+            st.subheader("Distribuição do Questionário de Risco")
+            if not risk_df.empty:
+                categorias_esperadas = ["Azul", "Verde", "Amarelo", "Vermelho"]
+                value_counts_risk = (
+                    risk_df["name"].value_counts().reindex(categorias_esperadas, fill_value=0)
                 )
 
+                cols = st.columns(len(value_counts_risk))
+                total_risk = value_counts_risk.sum()
+                for col, (name, count) in zip(cols, value_counts_risk.items()):
+                    percentage_risk = (count / total_risk) * 100
+                    with col:
+                        st.metric(
+                            label=name,
+                            value=f"{count} ({percentage_risk:.1f}%)",
+                            border=True,
+                        )
+            else:
+                st.warning("Nenhum paciente encontrado.")
+
             st.subheader("Saúde Populacional")
+
+            if not patients_heatlh_group_df.empty:
+                patients_heatlh_group_df["conditions"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.lower()
+
+                patients_heatlh_group_df["obesidade"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.contains("obesidade|sobrepeso", na=False)
+                patients_heatlh_group_df["alcoolismo"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.contains("álcool|etilismo", na=False)
+                patients_heatlh_group_df["sedentarismo"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.contains("sedentarismo", na=False)
+                patients_heatlh_group_df["gestante"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.contains("gestante", na=False)
+                patients_heatlh_group_df["tabagismo"] = patients_heatlh_group_df[
+                    "conditions"
+                ].str.contains("tabagismo", na=False)
+
+                contagem_health_group = {
+                    "Obesidade": patients_heatlh_group_df["obesidade"].sum(),
+                    "Alcoolismo": patients_heatlh_group_df["alcoolismo"].sum(),
+                    "Sedentarismo": patients_heatlh_group_df["sedentarismo"].sum(),
+                    "Gestante": patients_heatlh_group_df["gestante"].sum(),
+                    "Tabagismo": patients_heatlh_group_df["tabagismo"].sum(),
+                }
+                contagem_health_group_df = pd.DataFrame.from_dict(
+                    contagem_health_group, orient="index", columns=["Quantidade"]
+                )
+                contagem_health_group_df.index.name = "Condição"
+                cols = st.columns(len(contagem_health_group_df))
+                for col, (condicao, row) in zip(cols, contagem_health_group_df.iterrows()):
+                    with col:
+                        st.metric(label=condicao, value=int(row["Quantidade"]), border=True)
+
+            else:
+                st.warning("Nenhum paciente encontrado.")
+
             col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
             genero_pct = (
                 patients_df["gender"].value_counts(normalize=True).mul(100).round(1).reset_index()
