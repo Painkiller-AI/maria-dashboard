@@ -96,7 +96,7 @@ async def indicators_page():
         )
         score_df = pd.DataFrame(score)
 
-        appointments = await appointments_repository.video_appointments(
+        appointments = await appointments_repository.video_appointments_info(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
             start_date=start_date,
@@ -126,6 +126,18 @@ async def indicators_page():
                 st.metric(
                     label="Agendamentos realizados",
                     value=f"{len(appointments_df):,}".replace(",", "."),
+                    border=True,
+                )
+            with col_a2:
+                no_show = appointments_df["status"].value_counts().get("no_show", 0)
+                completed = appointments_df["status"].value_counts().get("completed", 0)
+                total = no_show + completed
+
+                absenteeism_rate = (no_show / total) * 100 if total > 0 else 0
+
+                st.metric(
+                    label="Taxa de Absenteísmo",
+                    value=f"{absenteeism_rate:.2f}%",
                     border=True,
                 )
 
@@ -180,6 +192,15 @@ async def indicators_page():
                     value=f"{len(chat_appointments_df):,}".replace(",", "."),
                     border=True,
                 )
+            with col_c2:
+                st.metric(
+                    label="Atendimentos via Chat abandonados",
+                    value=f"{len(chat_appointments_df[chat_appointments_df['outcome'] == 'abandonment']):,}".replace(
+                        ",", "."
+                    ),
+                    border=True,
+                )
+
         else:
             st.warning("Nenhum atendimento via chat encontrado.")
 
