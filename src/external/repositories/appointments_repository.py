@@ -7,7 +7,7 @@ from external.database.connection import db_connection
 
 
 class AppointmentsRepository:
-    async def video_appointments(
+    async def video_appointments_info(
         self,
         *,
         tenant_id: str,
@@ -16,7 +16,7 @@ class AppointmentsRepository:
         end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
-            filters = []
+            filters = ["p.care_team_id = ctp.care_team_id"]
             params = {}
 
             if tenant_id:
@@ -38,7 +38,7 @@ class AppointmentsRepository:
             where_clause = " AND ".join(filters) if filters else "1=1"
 
             query = text(f"""
-         SELECT DISTINCT ca.id AS appointment_id,
+         SELECT ca.id AS appointment_id,
             concat(hup1.first_name, ' ', hup1.last_name) AS patient_name,
             p.document AS patient_document,
             concat(hup2.first_name, ' ', hup2.last_name) AS practitioner_name,
@@ -79,7 +79,7 @@ class AppointmentsRepository:
         end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
         async with db_connection.session() as session:
-            filters = []
+            filters = ["p.care_team_id = ctp.care_team_id"]
             params = {}
 
             if tenant_id:
