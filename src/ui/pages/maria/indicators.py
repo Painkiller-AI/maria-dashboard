@@ -6,9 +6,12 @@ import streamlit as st
 from external.repositories.appointments_repository import AppointmentsRepository
 from external.repositories.orgazination_repository import OrganizationRepository
 from external.repositories.patients_repository import PatientsRepository
+from external.repositories.practitioners_repository import PractitionersRepository
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.calculate_nps import calculate_nps
 from shared.utils.get_datetime import calcular_idade
+from shared.utils.remove_orgs import remove_orgs
+from shared.utils.role_translation import role_translation
 from state import app_state
 
 
@@ -28,15 +31,17 @@ async def indicators_page():
         )
         organization_df = pd.DataFrame(orgazination)
 
+        practitioners_repository = PractitionersRepository()
+
         tenant = await tenants_repository.get_tenant(by="id", value=app_state.user.tenant_id)
 
         if tenant and tenant["domain"] != tenant_domain:
             st.error("Acesso negado. Você não tem permissão para acessar esta página.")
             return
 
-        excluded_orgs = {"Cortesia", "Lazy Org", "Gabriel Teste de Organização"}
+        excluded_orgs = remove_orgs()
         organization_list = sorted(
-            set(organization_df["organization_name"].unique()) - excluded_orgs
+            set(organization_df["organization_name"].unique()) - set(excluded_orgs)
         )
 
         col_filter1, col_filter2, col_filter3, col_filter4, col_filter5, col_filter6 = st.columns(6)
@@ -96,14 +101,6 @@ async def indicators_page():
         )
         score_df = pd.DataFrame(score)
 
-        appointments = await appointments_repository.video_appointments_info(
-            tenant_id=app_state.user.tenant_id,
-            organization_id=selected_org_ids,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        appointments_df = pd.DataFrame(appointments)
-
         risk = await patients_repository.patients_risk_group(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
@@ -111,24 +108,68 @@ async def indicators_page():
             end_date=end_date,
         )
         risk_df = pd.DataFrame(risk)
-        chat_appointments = await appointments_repository.chat_info(
+
+        active_practitioners = await practitioners_repository.practitioners_info(
             tenant_id=app_state.user.tenant_id,
             organization_id=selected_org_ids,
             start_date=start_date,
             end_date=end_date,
         )
-        chat_appointments_df = pd.DataFrame(chat_appointments)
+        active_practitioners = pd.DataFrame(active_practitioners)
+        st.subheader("Agendamentos")
+        practitioners_list = sorted(set(active_practitioners["practitioner_name"].unique()))
+        role_list = sorted(set(active_practitioners["care_team_role"].unique()))
+        role_translation_pt = role_translation()
 
+        translated_roles = [role_translation_pt[role] for role in role_list]
+        col_app_filter_1, col_app_filter_2, col_app_filter_3, col_app_filter_4 = st.columns(4)
+        with col_app_filter_1:
+            selected_practitioner = st.multiselect(
+                "Selecione o Profissional",
+                options=practitioners_list,
+                placeholder="Selecione uma ou mais opcões",
+            )
+            if selected_practitioner:
+                selected_practitioner_ids = active_practitioners[
+                    active_practitioners["practitioner_name"].isin(selected_practitioner)
+                ]["practitioner_id"].tolist()
+            else:
+                selected_practitioner_ids = active_practitioners[
+                    active_practitioners["practitioner_name"].isin(practitioners_list)
+                ]["practitioner_id"].tolist()
+
+        with col_app_filter_2:
+            selected_roles_pt = st.multiselect(
+                "Selecione o Tipo de Profissional",
+                options=translated_roles,
+                placeholder="Selecione uma ou mais opcões",
+            )
+            if selected_roles_pt:
+                selected_roles = [
+                    role
+                    for role, translated in role_translation_pt.items()
+                    if translated in selected_roles_pt
+                ]
+            else:
+                selected_roles = role_list
+
+            appointments = await appointments_repository.video_appointments_info(
+                tenant_id=app_state.user.tenant_id,
+                organization_id=selected_org_ids,
+                roles=selected_roles,
+                practitioner_id=selected_practitioner_ids,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            appointments_df = pd.DataFrame(appointments)
         if not appointments_df.empty:
-            st.subheader("Agendamentos")
-            col_a1, col_a2, col_a3, cola4 = st.columns(4)
-            with col_a1:
+            with col_app_filter_1:
                 st.metric(
                     label="Agendamentos realizados",
                     value=f"{len(appointments_df):,}".replace(",", "."),
                     border=True,
                 )
-            with col_a2:
+            with col_app_filter_2:
                 no_show = appointments_df["status"].value_counts().get("no_show", 0)
                 completed = appointments_df["status"].value_counts().get("completed", 0)
                 total = no_show + completed
@@ -182,7 +223,15 @@ async def indicators_page():
 
         else:
             st.warning("Nenhum agendamento encontrado.")
-
+        chat_appointments = await appointments_repository.chat_info(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            roles=selected_roles,
+            practitioner_id=selected_practitioner_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        chat_appointments_df = pd.DataFrame(chat_appointments)
         if not chat_appointments_df.empty:
             st.subheader("Atendimentos via Chat")
             col_c1, col_c2, col_c3, col_c4 = st.columns(4)

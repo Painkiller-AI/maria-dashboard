@@ -12,6 +12,8 @@ class AppointmentsRepository:
         *,
         tenant_id: str,
         organization_id: list[str] | None = None,
+        roles: list[str] | None = None,
+        practitioner_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
@@ -34,6 +36,13 @@ class AppointmentsRepository:
             if end_date:
                 filters.append("ca.start_at <= :end_date")
                 params["end_date"] = end_date
+
+            if practitioner_id:
+                filters.append("ca.practitioner_id IN :practitioner_id")
+                params["practitioner_id"] = practitioner_id
+            if roles:
+                filters.append("ctp.role IN :roles")
+                params["roles"] = roles
 
             where_clause = " AND ".join(filters) if filters else "1=1"
 
@@ -65,6 +74,10 @@ class AppointmentsRepository:
             """)
             if organization_id:
                 query = query.bindparams(bindparam("organization_id", expanding=True))
+            if practitioner_id:
+                query = query.bindparams(bindparam("practitioner_id", expanding=True))
+            if roles:
+                query = query.bindparams(bindparam("roles", expanding=True))
             result = await session.execute(query, params)
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
@@ -75,6 +88,8 @@ class AppointmentsRepository:
         *,
         tenant_id: str,
         organization_id: list[str] | None = None,
+        roles: list[str] | None = None,
+        practitioner_id: list[str] | None = None,
         start_date: datetime.date | None = None,
         end_date: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
@@ -97,6 +112,12 @@ class AppointmentsRepository:
             if end_date:
                 filters.append("hs.created_at <= :end_date")
                 params["end_date"] = end_date
+            if practitioner_id:
+                filters.append("hs.practitioner_id IN :practitioner_id")
+                params["practitioner_id"] = practitioner_id
+            if roles:
+                filters.append("ctp.role IN :roles")
+                params["roles"] = roles
 
             where_clause = " AND ".join(filters) if filters else "1=1"
 
@@ -157,6 +178,10 @@ class AppointmentsRepository:
             """)
             if organization_id:
                 query = query.bindparams(bindparam("organization_id", expanding=True))
+            if practitioner_id:
+                query = query.bindparams(bindparam("practitioner_id", expanding=True))
+            if roles:
+                query = query.bindparams(bindparam("roles", expanding=True))
             result = await session.execute(query, params)
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
