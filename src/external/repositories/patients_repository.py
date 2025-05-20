@@ -286,3 +286,62 @@ class PatientsRepository:
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
             return data
+
+    async def patients_csat(
+        self,
+        *,
+        tenant_id: str,
+        organization_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
+    ) -> list[dict[str, Any]] | None:
+        async with db_connection.session() as session:
+            filters = []
+            params = {}
+
+            if tenant_id:
+                filters.append("c.tenant_id = :tenant_id")
+                params["tenant_id"] = tenant_id
+
+            if organization_id:
+                filters.append("ou.organization_id IN :organization_id")
+                params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("c.rated_at >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("c.rated_at <= :end_date")
+                params["end_date"] = end_date
+
+            where_clause = " AND ".join(filters) if filters else "1=1"
+
+            query = text(f"""
+                        select
+                            COUNT(*) as total,
+                            COUNT(*) filter (
+                            where c.rating = 5) as promoters,
+                            COUNT(*) filter (
+                            where c.rating <= 3) as detractors,
+                            ROUND(
+                            100.0 * (
+                            COUNT(*) filter (where c.rating = 5) - 
+                            COUNT(*) filter (where c.rating <= 3)
+                            ) / nullif(COUNT(*), 0),
+                            2
+                        ) as result
+                        from
+                            csat c
+                        join organizations_users ou on
+                            ou.user_id = c.patient_id
+                        where {where_clause};
+                        """)
+
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
+
+            result = await session.execute(query, params)
+            rows = result.mappings().all()
+            data = [dict(row) for row in rows]
+            return data
