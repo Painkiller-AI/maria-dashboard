@@ -116,52 +116,56 @@ async def indicators_page():
             end_date=end_date,
         )
         active_practitioners = pd.DataFrame(active_practitioners)
-        st.subheader("Agendamentos")
-        practitioners_list = sorted(set(active_practitioners["practitioner_name"].unique()))
-        role_list = sorted(set(active_practitioners["care_team_role"].unique()))
-        role_translation_pt = role_translation()
+        if not active_practitioners.empty:
+            st.subheader("Agendamentos")
+            practitioners_list = sorted(set(active_practitioners["practitioner_name"].unique()))
+            role_list = sorted(set(active_practitioners["care_team_role"].unique()))
+            role_translation_pt = role_translation()
 
-        translated_roles = [role_translation_pt[role] for role in role_list]
-        col_app_filter_1, col_app_filter_2, col_app_filter_3, col_app_filter_4 = st.columns(4)
-        with col_app_filter_1:
-            selected_practitioner = st.multiselect(
-                "Selecione o Profissional",
-                options=practitioners_list,
-                placeholder="Selecione uma ou mais opcões",
-            )
-            if selected_practitioner:
-                selected_practitioner_ids = active_practitioners[
-                    active_practitioners["practitioner_name"].isin(selected_practitioner)
-                ]["practitioner_id"].tolist()
-            else:
-                selected_practitioner_ids = active_practitioners[
-                    active_practitioners["practitioner_name"].isin(practitioners_list)
-                ]["practitioner_id"].tolist()
+            translated_roles = [role_translation_pt[role] for role in role_list]
+            col_app_filter_1, col_app_filter_2, col_app_filter_3, col_app_filter_4 = st.columns(4)
+            with col_app_filter_1:
+                selected_practitioner = st.multiselect(
+                    "Selecione o Profissional",
+                    options=practitioners_list,
+                    placeholder="Selecione uma ou mais opcões",
+                )
+                if selected_practitioner:
+                    selected_practitioner_ids = active_practitioners[
+                        active_practitioners["practitioner_name"].isin(selected_practitioner)
+                    ]["practitioner_id"].tolist()
+                else:
+                    selected_practitioner_ids = active_practitioners[
+                        active_practitioners["practitioner_name"].isin(practitioners_list)
+                    ]["practitioner_id"].tolist()
+            with col_app_filter_2:
+                selected_roles_pt = st.multiselect(
+                    "Selecione o Tipo de Profissional",
+                    options=translated_roles,
+                    placeholder="Selecione uma ou mais opcões",
+                )
+                if selected_roles_pt:
+                    selected_roles = [
+                        role
+                        for role, translated in role_translation_pt.items()
+                        if translated in selected_roles_pt
+                    ]
+                else:
+                    selected_roles = role_list
+        else:
+            st.warning("Nenhum profissional encontrado.")
+            selected_practitioner_ids = []
+            selected_roles = []
 
-        with col_app_filter_2:
-            selected_roles_pt = st.multiselect(
-                "Selecione o Tipo de Profissional",
-                options=translated_roles,
-                placeholder="Selecione uma ou mais opcões",
-            )
-            if selected_roles_pt:
-                selected_roles = [
-                    role
-                    for role, translated in role_translation_pt.items()
-                    if translated in selected_roles_pt
-                ]
-            else:
-                selected_roles = role_list
-
-            appointments = await appointments_repository.video_appointments_info(
-                tenant_id=app_state.user.tenant_id,
-                organization_id=selected_org_ids,
-                roles=selected_roles,
-                practitioner_id=selected_practitioner_ids,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            appointments_df = pd.DataFrame(appointments)
+        appointments = await appointments_repository.video_appointments_info(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            roles=selected_roles,
+            practitioner_id=selected_practitioner_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        appointments_df = pd.DataFrame(appointments)
         if not appointments_df.empty:
             with col_app_filter_1:
                 st.metric(
