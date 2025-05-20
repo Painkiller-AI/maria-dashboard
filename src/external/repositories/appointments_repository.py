@@ -241,3 +241,149 @@ class AppointmentsRepository:
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
             return data
+
+    async def all_digital_interactions(
+        self,
+        *,
+        tenant_id: str,
+        organization_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
+    ) -> list[dict[str, Any]] | None:
+        async with db_connection.session() as session:
+            filters = []
+            params = {}
+
+            if tenant_id:
+                filters.append("adi.tenant_id = :tenant_id")
+                params["tenant_id"] = tenant_id
+
+            if organization_id:
+                filters.append("adi.organization_id IN :organization_id")
+                params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("adi.interaction_date >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("adi.interaction_date <= :end_date")
+                params["end_date"] = end_date
+
+            where_clause = " AND ".join(filters) if filters else "1=1"
+
+            query = text(f"""
+                            with concierge_interactions as (
+                                select
+                                    hs.patient_id,
+                                    hs.created_at as interaction_date,
+                                    'Concierge' as type,
+                                    hs.tenant_id,
+                                    ou.organization_id
+                                from
+                                    healthcare_service hs
+                                inner join organizations_users ou on
+                                    hs.patient_id = ou.user_id
+                                inner join practitioners p on
+                                    hs.practitioner_id = p.id
+                                where
+                                    p.title ilike 'Concierge'
+                                    and hs.outcome <> 'abandonment'
+                                ),
+                                feedbacks_ia as (
+                                select
+                                    f.user_id as patient_id,
+                                    f.created_at as interaction_date,
+                                    'Feedback' as type,
+                                    f.tenant_id,
+                                    ou.organization_id
+                                from
+                                    feedbacks f
+                                inner join organizations_users ou on
+                                    f.user_id = ou.user_id
+
+                                ),
+                                symptoms_triages as (
+                                select
+                                    i.user_id as patient_id,
+                                    i.ended_at as interaction_date,
+                                    'Symptoms' as type,
+                                    i.tenant_id,
+                                    ou.organization_id
+                                from
+                                    interactions i
+                                inner join organizations_users ou on
+                                    i.user_id = ou.user_id
+                                where
+                                    i.ended_at is not null
+                                ),
+                                validation_tasks as (
+                                select
+                                    t.patient_id,
+                                    t.created_at as interaction_date,
+                                    'Validation' as type,
+                                    t.tenant_id,
+                                    ou.organization_id
+                                from
+                                    tasks t
+                                inner join organizations_users ou on
+                                    t.patient_id = ou.user_id
+                                where
+                                    t.title like '%Validar%'
+                                ),
+                                all_digital_interactions as (
+                                select
+                                    patient_id,
+                                    interaction_date,
+                                    type,
+                                    tenant_id,
+                                    organization_id
+                                from
+                                    concierge_interactions
+                                union all
+                                select
+                                    patient_id,
+                                    interaction_date,
+                                    type,
+                                    tenant_id,
+                                    organization_id
+                                from
+                                    feedbacks_ia
+                                union all
+                                select
+                                    patient_id,
+                                    interaction_date,
+                                    type,
+                                    tenant_id,
+                                    organization_id
+                                from
+                                    symptoms_triages
+                                union all
+                                select
+                                    patient_id,
+                                    interaction_date,
+                                    type,
+                                    tenant_id,
+                                    organization_id
+                                from
+                                    validation_tasks
+                                )
+                                select
+                                    patient_id,
+                                    interaction_date,
+                                    type,
+                                    tenant_id,
+                                    organization_id
+                                from
+                                    all_digital_interactions adi
+                                where {where_clause}
+                                order by
+                                    patient_id,
+                                    interaction_date;
+            """)
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
+            result = await session.execute(query, params)
+            rows = result.mappings().all()
+            data = [dict(row) for row in rows]
+            return data
