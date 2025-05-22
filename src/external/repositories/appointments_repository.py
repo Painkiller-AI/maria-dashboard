@@ -387,3 +387,88 @@ class AppointmentsRepository:
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
             return data
+
+    async def tasks_info(
+        self,
+        *,
+        tenant_id: str,
+        organization_id: list[str] | None = None,
+        owner_id: list[str] | None = None,
+        author_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
+    ) -> list[dict[str, Any]] | None:
+        async with db_connection.session() as session:
+            filters = []
+            params = {}
+
+            if tenant_id:
+                filters.append("t.tenant_id = :tenant_id")
+                params["tenant_id"] = tenant_id
+
+            if organization_id:
+                filters.append("ou.organization_id IN :organization_id")
+                params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("t.created_at >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("t.created_at <= :end_date")
+                params["end_date"] = end_date
+
+            if owner_id:
+                filters.append("t.owner IN :owner_id")
+                params["owner_id"] = owner_id
+            if author_id:
+                filters.append("t.author IN :author_id")
+                params["author_id"] = author_id
+
+            where_clause = " AND ".join(filters) if filters else "1=1"
+
+            query = text(f"""
+                select
+                    t.id,
+                    t.title,
+                    t.description,
+                    t.priority,
+                    concat(hup2.first_name, ' ', hup2.last_name) AS owner_name,
+                    concat(hup3.first_name, ' ', hup3.last_name) AS author_name,
+                    concat(hup1.first_name, ' ', hup1.last_name) AS patient_name,
+                    t.metadata,
+                    t.completed_at,
+                    t.created_at,
+                    t.updated_at,
+                    t.status,
+                    t.deadline,
+                    t.tenant_id,
+                    ou.organization_id
+                from
+                    tasks t
+                join patients p on
+                    p.id = t.patient_id
+                join human_users hup1 on
+                    hup1.id = t.patient_id
+                join users u on
+                    u.id = t.patient_id
+                join organizations_users ou on
+                    ou.user_id = u.id
+                join organizations o on
+                    o.id::text = ou.organization_id::text
+                left join human_users hup2 on
+                    hup2.id = t.owner_id
+                left join human_users hup3 on
+                    hup3.id = t.author_id
+                where {where_clause};
+            """)
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
+            if owner_id:
+                query = query.bindparams(bindparam("owner_id", expanding=True))
+            if author_id:
+                query = query.bindparams(bindparam("author_id", expanding=True))
+            result = await session.execute(query, params)
+            rows = result.mappings().all()
+            data = [dict(row) for row in rows]
+            return data

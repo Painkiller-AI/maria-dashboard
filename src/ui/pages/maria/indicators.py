@@ -9,7 +9,7 @@ from external.repositories.patients_repository import PatientsRepository
 from external.repositories.practitioners_repository import PractitionersRepository
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.calculate_nps import calculate_nps
-from shared.utils.get_datetime import calcular_idade
+from shared.utils.get_datetime import calcular_idade, mesclar_e_filtrar_usuarios_ativos
 from shared.utils.remove_orgs import remove_orgs
 from shared.utils.role_translation import role_translation
 from state import app_state
@@ -115,6 +115,30 @@ async def indicators_page():
             start_date=start_date,
             end_date=end_date,
         )
+
+        # patients_csat = await patients_repository.patients_csat(
+        #     tenant_id=app_state.user.tenant_id,
+        #     organization_id=selected_org_ids,
+        #     start_date=start_date,
+        #     end_date=end_date,
+        # )
+        # patients_csat_df = pd.DataFrame(patients_csat)
+
+        feedback_info = await appointments_repository.feedback_ia(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        feedback_info_df = pd.DataFrame(feedback_info)
+
+        digital_interactions = await appointments_repository.all_digital_interactions(
+            tenant_id=app_state.user.tenant_id,
+            organization_id=selected_org_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        digital_interactions_df = pd.DataFrame(digital_interactions)
         active_practitioners = pd.DataFrame(active_practitioners)
         if not active_practitioners.empty:
             st.subheader("Agendamentos")
@@ -237,6 +261,16 @@ async def indicators_page():
         )
         chat_appointments_df = pd.DataFrame(chat_appointments)
         if not chat_appointments_df.empty:
+            df_activer_users = mesclar_e_filtrar_usuarios_ativos(
+                chat_appointments_df, appointments_df, 60
+            )
+            tasks_info = await appointments_repository.tasks_info(
+                tenant_id=app_state.user.tenant_id,
+                organization_id=selected_org_ids,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            tasks_info_df = pd.DataFrame(tasks_info)
             st.subheader("Atendimentos via Chat")
             col_c1, col_c2, col_c3, col_c4 = st.columns(4)
             with col_c1:
