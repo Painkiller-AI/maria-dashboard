@@ -10,6 +10,7 @@ from external.repositories.practitioners_repository import PractitionersReposito
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.calculate_nps import calculate_nps
 from shared.utils.get_datetime import (
+    agrupar_por_dia_hora,
     calcular_idade,
     mesclar_e_filtrar_usuarios_ativos,
 )
@@ -201,6 +202,8 @@ async def indicators_page():
                 end_date=end_date,
             )
             intent_log_df = pd.DataFrame(intent_log)
+            intent_log_grouped = agrupar_por_dia_hora(intent_log_df, "created_at")
+
             with col_app_filter_1:
                 st.metric(
                     label="Agendamentos realizados",

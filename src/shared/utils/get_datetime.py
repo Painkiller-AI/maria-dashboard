@@ -74,6 +74,9 @@ def agrupar_por_dia_hora(df: pd.DataFrame, coluna_data: str) -> pd.DataFrame:
         df[coluna_data] = pd.to_datetime(df[coluna_data], errors="coerce")
 
     df = df.dropna(subset=[coluna_data])
+    df[coluna_data] = df[coluna_data].dt.tz_localize("UTC")
+
+    df[coluna_data] = df[coluna_data].dt.tz_convert("America/Sao_Paulo")
 
     df["dia_semana"] = df[coluna_data].dt.day_name(locale="pt_BR")
     df["hora"] = df[coluna_data].dt.hour
