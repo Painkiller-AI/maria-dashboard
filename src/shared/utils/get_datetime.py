@@ -65,3 +65,25 @@ def mesclar_e_filtrar_usuarios_ativos(
     df.reset_index(drop=True, inplace=True)
 
     return df
+
+
+def agrupar_por_dia_hora(df: pd.DataFrame, coluna_data: str) -> pd.DataFrame:
+    df = df.copy()
+
+    if not pd.api.types.is_datetime64_any_dtype(df[coluna_data]):
+        df[coluna_data] = pd.to_datetime(df[coluna_data], errors="coerce")
+
+    df = df.dropna(subset=[coluna_data])
+
+    df["dia_semana"] = df[coluna_data].dt.day_name(locale="pt_BR")
+    df["hora"] = df[coluna_data].dt.hour
+
+    agrupado = (
+        df.groupby(["dia_semana", "hora"])
+        .size()
+        .reset_index(name="contagem")
+        .sort_values(by="contagem", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return agrupado

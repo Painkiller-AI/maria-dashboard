@@ -9,7 +9,10 @@ from external.repositories.patients_repository import PatientsRepository
 from external.repositories.practitioners_repository import PractitionersRepository
 from external.repositories.tenants_repository import TenantsRepository
 from shared.utils.calculate_nps import calculate_nps
-from shared.utils.get_datetime import calcular_idade, mesclar_e_filtrar_usuarios_ativos
+from shared.utils.get_datetime import (
+    calcular_idade,
+    mesclar_e_filtrar_usuarios_ativos,
+)
 from shared.utils.remove_orgs import remove_orgs
 from shared.utils.role_translation import role_translation
 from state import app_state
@@ -191,6 +194,13 @@ async def indicators_page():
         )
         appointments_df = pd.DataFrame(appointments)
         if not appointments_df.empty:
+            intent_log = await appointments_repository.intent_log_info(
+                tenant_id=app_state.user.tenant_id,
+                organization_id=selected_org_ids,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            intent_log_df = pd.DataFrame(intent_log)
             with col_app_filter_1:
                 st.metric(
                     label="Agendamentos realizados",

@@ -472,3 +472,72 @@ class AppointmentsRepository:
             rows = result.mappings().all()
             data = [dict(row) for row in rows]
             return data
+
+    async def intent_log_info(
+        self,
+        *,
+        tenant_id: str,
+        organization_id: list[str] | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
+    ) -> list[dict[str, Any]] | None:
+        async with db_connection.session() as session:
+            filters = []
+            params = {}
+
+            if tenant_id:
+                filters.append("il.tenant_id = :tenant_id")
+                params["tenant_id"] = tenant_id
+
+            if organization_id:
+                filters.append("ou.organization_id IN :organization_id")
+                params["organization_id"] = organization_id
+
+            if start_date:
+                filters.append("il.created_at >= :start_date")
+                params["start_date"] = start_date
+
+            if end_date:
+                filters.append("il.created_at <= :end_date")
+                params["end_date"] = end_date
+
+            where_clause = " AND ".join(filters) if filters else "1=1"
+
+            query = text(f"""
+                    select
+                        il.message_id,
+                        il.intent_theme,
+                        il.intent_verb ,
+                        il.action,
+                        il.provider,
+                        il.created_at,
+                        cm.user_id,
+                        concat(hu.first_name, ' ', hu.last_name) as patient_name,
+                        ou.organization_id,
+                        org.name as organization_name,
+                        t.domain
+                    from
+                        intent_log il
+                    join chat_messages cm
+                    on
+                        il.message_id = cm.id
+                    join human_users hu
+                    on
+                        cm.user_id = hu.id
+                    join organizations_users ou 
+                    on
+                        ou.user_id = hu.id
+                    join organizations org
+                    on
+                        org.id = ou.organization_id
+                    join tenants t
+                    on
+                        t.id = org.tenant_id
+                    where {where_clause};
+            """)
+            if organization_id:
+                query = query.bindparams(bindparam("organization_id", expanding=True))
+            result = await session.execute(query, params)
+            rows = result.mappings().all()
+            data = [dict(row) for row in rows]
+            return data
